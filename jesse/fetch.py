@@ -161,6 +161,11 @@ def smart_fetch(source, destination, allow_file=False):
 			parsed_url['path'] = match.group('slug') + '.git'
 			parsed_url['fragment'] = match.group('branch')
 		# convert github.com project pages to git+https repos
+		match = re.match(r'^/(?P<slug>[\w-]+/[\w-]+)$', parsed_url['path'])
+		if parsed_url['netloc'].lower() == 'gist.github.com' and match is not None:
+			parsed_url['scheme'] = 'git+https'
+			parsed_url['path'] = match.group('slug') + '.git'
+		# convert github.com project pages to git+https repos
 		match = re.match(r'^/(?P<slug>[\w-]+/[\w-]+)(?:/tree/(?P<branch>\w+))?/?$', parsed_url['path'])
 		if parsed_url['netloc'].lower() == 'github.com' and match is not None:
 			parsed_url['scheme'] = 'git+https'
