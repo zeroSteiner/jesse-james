@@ -35,6 +35,8 @@
 import datetime
 import json
 
+import bandit
+
 class Report(object):
 	def __init__(self, data):
 		self.data = data
@@ -48,3 +50,13 @@ class Report(object):
 	@property
 	def generated_at(self):
 		return datetime.datetime.strptime(self.data['generated_at'], '%Y-%m-%dT%H:%M:%SZ')
+
+	def results(self, min_confidence=None, min_severity=None):
+		min_confidence = bandit.RANKING_VALUES[min_confidence or bandit.UNDEFINED]
+		min_severity = bandit.RANKING_VALUES[min_severity or bandit.UNDEFINED]
+		for result in self.data['results']:
+			if bandit.RANKING_VALUES[result['issue_confidence']] < min_confidence:
+				continue
+			if bandit.RANKING_VALUES[result['issue_severity']] < min_severity:
+				continue
+			yield result
