@@ -36,6 +36,7 @@ import argparse
 import json
 import os
 import queue
+import re
 import shutil
 import sys
 import tempfile
@@ -103,7 +104,13 @@ def main_pushbullet(arguments):
 		if requesting_device is None:
 			continue
 		print("[*] received request to scan: {0} from {1}".format(scan_target, (requesting_device.nickname or requesting_device.device_iden)))
-		scan_uid = smoke_zephyr.utilities.random_string_alphanumeric(8)
+		match = re.match(r'^http(s)://(github|bitbucket)\.com/(?P<slug>[\w\.-]+/[\w\.-]+)', scan_target, re.I)
+		if match:
+			scan_uid = match.group('slug').replace('/', ':', 1)
+			scan_uid += '-' + smoke_zephyr.utilities.random_string_alphanumeric(4)
+		else:
+			scan_uid = smoke_zephyr.utilities.random_string_alphanumeric(8)
+
 		try:
 			scanner = _run_scan(arguments, scan_target)
 			report = scanner.get_report()
