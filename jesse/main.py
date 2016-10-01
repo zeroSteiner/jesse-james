@@ -39,41 +39,16 @@ import queue
 import shutil
 import sys
 import tempfile
+import traceback
 
 from jesse import fetch
+from jesse import pushbullet_listener
 from jesse import runner
 
 import pushbullet
 import smoke_zephyr.utilities
 
 __version__ = '1.0'
-
-class PushbulletDeviceListener(pushbullet.Listener):
-	def __init__(self, account, device, on_push=None, update_device=True):
-		self.device = device
-		if update_device:
-			account.edit_device(
-				device,
-				model='.'.join(map(str, sys.version_info[:3])),
-				manufacturer='Python'
-			)
-		self.last_push = account.get_pushes(limit=1)[0]
-		super(PushbulletDeviceListener, self).__init__(account)
-		self.on_push = self._on_push
-		if on_push is not None:
-			self.on_device_push = on_push
-
-	def _on_push(self, data):
-		if not (data.get('type') == 'tickle' and data.get('subtype') == 'push'):
-			return
-		for push in self._account.get_pushes(modified_after=self.last_push['modified']):
-			if push.get('target_device_iden') != self.device.device_iden:
-				continue
-			self.on_device_push(push)
-			self.last_push = push
-
-	def on_device_push(self, push_message):
-		pass
 
 def _run_scan(arguments, scan_target, allow_file=False):
 	tmp_path = arguments.tmp_path
@@ -102,8 +77,12 @@ def main_pushbullet(arguments):
 	if device is None:
 		device = account.new_device(device_name)
 
+	if not os.path.isdir(arguments.report_directory):
+		os.makedirs(arguments.report_directory)
+		print('[*] created report directory: ' + arguments.report_directory)
+
 	work_queue = queue.Queue()
-	listener = PushbulletDeviceListener(account, device=device, on_push=work_queue.put)
+	listener = pushbullet_listener.PushbulletDeviceListener(account, device=device, on_push=work_queue.put)
 	listener.start()
 
 	print('[*] started listener for pushbullet links shared with: ' + device_name)
@@ -125,8 +104,17 @@ def main_pushbullet(arguments):
 			continue
 		print("[*] received request to scan: {0} from {1}".format(scan_target, (requesting_device.nickname or requesting_device.device_iden)))
 		scan_uid = smoke_zephyr.utilities.random_string_alphanumeric(8)
-		scanner = _run_scan(arguments, scan_target)
-		report = scanner.get_report()
+		try:
+			scanner = _run_scan(arguments, scan_target)
+			report = scanner.get_report()
+		except Exception:
+			account.push_note(
+				'Bandit Scan Error',
+				"An error occurred while scanning: {0}".format(scan_target),
+				device=requesting_device
+			)
+			traceback.print_exc()
+			continue
 		metrics_totals = report['metrics']['_totals']
 		summary = "high:{0} medium:{1} low:{2}".format(
 			metrics_totals['SEVERITY.HIGH'],
