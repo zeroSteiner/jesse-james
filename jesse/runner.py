@@ -58,7 +58,7 @@ class SubprocessRunner(object):
 				'--format',
 				'json',
 				'--number',
-				'7',
+				'11',
 				'--recursive',
 				self.target_path
 			],

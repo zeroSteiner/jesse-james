@@ -1,3 +1,6 @@
 GitPython
 pushbullet.py
 smoke-zephyr
+tabulate
+termcolor
+xlsxwriter

@@ -32,10 +32,16 @@
 #  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
+import argparse
+import collections
 import datetime
 import json
+import textwrap
 
 import bandit
+import pydoc
+import tabulate
+import termcolor
 
 class Report(object):
 	def __init__(self, data):
@@ -60,3 +66,53 @@ class Report(object):
 			if bandit.RANKING_VALUES[result['issue_severity']] < min_severity:
 				continue
 			yield result
+
+	def to_text(self, maxwidth=80):
+		results = sorted(self.data['results'], key=lambda r: bandit.RANKING_VALUES[r['issue_severity']])
+		results.reverse()
+		text = collections.deque()
+		text.append('Report:')
+		text.append("  - Generated At:   {0:%b %d, %Y %H:%M}".format(self.generated_at))
+		text.append("  - Python Version: {0}".format(self.data.get('python_version', 'UNKNOWN')))
+		text.append("  - Total Findings: {0:,}".format(len(results)))
+		text.append('')
+
+		text.append('Summary:')
+		tally = lambda c, s: sum(1 for res in results if res['issue_confidence'] == c and res['issue_severity'] == s)
+		summary_table = [[s] + [tally(c, s) for c in reversed(bandit.RANKING)] for s in reversed(bandit.RANKING)]
+		summary_table = tabulate.tabulate(
+			summary_table,
+			headers=[''] + list(reversed(bandit.RANKING)),
+			tablefmt='grid'
+		)
+		text.extend(summary_table.split('\n'))
+		text.append('(Shown as Confidence over Severity)')
+		text.append('')
+
+		for result_id, result in enumerate(results, 1):
+			text.append("Result #{0:<7,} {1} - {2}".format(result_id, result['test_id'], result['test_name']))
+			text.append("  Severity: {0:<8} Confidence: {1}".format(result['issue_severity'], result['issue_confidence']))
+			text.append('  Description:')
+			text.extend(['    ' + line for line in textwrap.wrap(result['issue_text'], width=maxwidth - 4)])
+			text.append("  Source: {0}:{1}".format(result['filename'], result['line_number']))
+			for line in result['code'].split('\n')[:-1]:
+				if ' ' in line:
+					text.append("    {0:<5}: {1}".format(*line.split(' ', 1)))
+				else:
+					text.append('    ' + line)
+			text.append('')
+		return '\n'.join(text)
+
+if __name__ == '__main__':
+	parser = argparse.ArgumentParser(description='Jesse James (CLI) - Bandit Report Manager', conflict_handler='resolve')
+	parser.add_argument('-o', '--output', dest='output', type=argparse.FileType('w'), help='a file to write the report to')
+	parser.add_argument('report_file', help='the report file to load')
+	arguments = parser.parse_args()
+
+	report = Report.from_json_file(arguments.report_file)
+	report_text = report.to_text()
+
+	if arguments.output:
+		arguments.output.write(report_text)
+	else:
+		pydoc.pager(report_text)

@@ -107,7 +107,7 @@ def main_pushbullet(arguments):
 		match = re.match(r'^http(s)://(github|bitbucket)\.com/(?P<slug>[\w\.-]+/[\w\.-]+)', scan_target, re.I)
 		if match:
 			scan_uid = match.group('slug').replace('/', ':', 1)
-			scan_uid += '-' + smoke_zephyr.utilities.random_string_alphanumeric(4)
+			scan_uid += ':' + smoke_zephyr.utilities.random_string_alphanumeric(4)
 		else:
 			scan_uid = smoke_zephyr.utilities.random_string_alphanumeric(8)
 
