@@ -66,14 +66,13 @@ def _fetch_remote(source, destination, parsed_url, creds, tmp_file, tmp_path):
 		if branch:
 			parsed_url['fragment'] = ''
 		else:
-			branch = 'master'
+			branch = None
 		os.mkdir(destination, mode=MAKEDIR_MODE)
-		repo = git.Repo.init(destination)
-		origin = repo.create_remote('origin', urllib.parse.urlunparse(parsed_url.values()))
-		origin.fetch()
-		origin.pull('master')
-		if branch == 'master':
+		repo = git.Repo.clone_from(urllib.parse.urlunparse(parsed_url.values()), destination)
+		if branch is None or branch == repo.active_branch.name:
 			return
+		origin = repo.remotes['origin']
+		origin.fetch()
 		branch_ref = next((ref for ref in repo.refs if isinstance(ref, git.RemoteReference) and ref.remote_head == branch), None)
 		if branch_ref is None:
 			raise ValueError('failed to find reference to remote branch name: ' + branch)
@@ -155,18 +154,20 @@ def smart_fetch(source, destination, allow_file=False):
 	parsed_url['scheme'] = parsed_url['scheme'].lower()
 	if parsed_url['scheme'] in ('http', 'https'):
 		# convert bitbucket.org project pages to git+https repos
-		match = re.match(r'^/(?P<slug>[\w-]+/[\w-]+)(?:/branch/(?P<branch>\w+))?/?$', parsed_url['path'])
+		match = re.match(r'^/(?P<slug>[\w\.-]+/[\w\.-]+)(?:/branch/(?P<branch>[\w\.-]+))?/?$', parsed_url['path'])
 		if parsed_url['netloc'].lower() == 'bitbucket.org' and match is not None:
 			parsed_url['scheme'] = 'git+https'
 			parsed_url['path'] = match.group('slug') + '.git'
 			parsed_url['fragment'] = match.group('branch')
+
 		# convert github.com project pages to git+https repos
 		match = re.match(r'^/(?P<slug>[\w-]+/[\w-]+)$', parsed_url['path'])
 		if parsed_url['netloc'].lower() == 'gist.github.com' and match is not None:
 			parsed_url['scheme'] = 'git+https'
 			parsed_url['path'] = match.group('slug') + '.git'
+
 		# convert github.com project pages to git+https repos
-		match = re.match(r'^/(?P<slug>[\w-]+/[\w-]+)(?:/tree/(?P<branch>\w+))?/?$', parsed_url['path'])
+		match = re.match(r'^/(?P<slug>[\w\.-]+/[\w\.-]+)(?:/tree/(?P<branch>[\w\.-]+))?/?$', parsed_url['path'])
 		if parsed_url['netloc'].lower() == 'github.com' and match is not None:
 			parsed_url['scheme'] = 'git+https'
 			parsed_url['path'] = match.group('slug') + '.git'
