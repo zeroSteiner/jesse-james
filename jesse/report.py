@@ -36,6 +36,7 @@ import argparse
 import collections
 import datetime
 import json
+import re
 import textwrap
 
 import bandit
@@ -46,6 +47,16 @@ import termcolor
 class Report(object):
 	def __init__(self, data):
 		self.data = data
+
+	@staticmethod
+	def _colored_ranking(ranking):
+		colors = {
+			bandit.HIGH: 'red',
+			bandit.MEDIUM: 'yellow',
+			bandit.LOW: 'white',
+			bandit.UNDEFINED: 'cyan',
+		}
+		return termcolor.colored(ranking, colors[ranking], attrs=('bold',))
 
 	@classmethod
 	def from_json_file(cls, filename):
@@ -67,17 +78,19 @@ class Report(object):
 				continue
 			yield result
 
-	def to_text(self, maxwidth=80):
-		results = sorted(self.data['results'], key=lambda r: bandit.RANKING_VALUES[r['issue_severity']])
+	def to_text(self, maxwidth=80, use_color=True):
+		results = self.data['results']
+		results = sorted(results, key=lambda r: bandit.RANKING_VALUES[r['issue_confidence']])
+		results = sorted(results, key=lambda r: bandit.RANKING_VALUES[r['issue_severity']])
 		results.reverse()
 		text = collections.deque()
-		text.append('Report:')
+		text.append(termcolor.colored('Report:', attrs=('bold', 'underline')))
 		text.append("  - Generated At:   {0:%b %d, %Y %H:%M}".format(self.generated_at))
 		text.append("  - Python Version: {0}".format(self.data.get('python_version', 'UNKNOWN')))
 		text.append("  - Total Findings: {0:,}".format(len(results)))
 		text.append('')
 
-		text.append('Summary:')
+		text.append(termcolor.colored('Summary:', attrs=('bold', 'underline')))
 		tally = lambda c, s: sum(1 for res in results if res['issue_confidence'] == c and res['issue_severity'] == s)
 		summary_table = [[s] + [tally(c, s) for c in reversed(bandit.RANKING)] for s in reversed(bandit.RANKING)]
 		summary_table = tabulate.tabulate(
@@ -86,12 +99,19 @@ class Report(object):
 			tablefmt='grid'
 		)
 		text.extend(summary_table.split('\n'))
-		text.append('(Shown as Confidence over Severity)')
+		text.append('| (Shown as Confidence over Severity)')
+		text.append('+------------------------------------')
 		text.append('')
 
 		for result_id, result in enumerate(results, 1):
-			text.append("Result #{0:<7,} {1} - {2}".format(result_id, result['test_id'], result['test_name']))
-			text.append("  Severity: {0:<8} Confidence: {1}".format(result['issue_severity'], result['issue_confidence']))
+			header = ''
+			header += "{0:<27}".format(termcolor.colored("Result #{0:,}".format(result_id), attrs=('bold', 'underline')))
+			header += " [{0}: {1}]".format(result['test_id'], termcolor.colored(result['test_name'], attrs=('bold',)))
+			text.append(header)
+			text.append("  Severity: {0:<22} Confidence: {1}".format(
+				self._colored_ranking(result['issue_severity']),
+				self._colored_ranking(result['issue_confidence'])
+			))
 			text.append('  Description:')
 			text.extend(['    ' + line for line in textwrap.wrap(result['issue_text'], width=maxwidth - 4)])
 			text.append("  Source: {0}:{1}".format(result['filename'], result['line_number']))
@@ -101,7 +121,12 @@ class Report(object):
 				else:
 					text.append('    ' + line)
 			text.append('')
-		return '\n'.join(text)
+		# text deque is fully created
+		text = '\n'.join(text)
+		if not use_color:
+			ansi_escape = re.compile(r'\x1b[^m]*m')
+			text = ansi_escape.sub('', text)
+		return text
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser(description='Jesse James (CLI) - Bandit Report Manager', conflict_handler='resolve')
@@ -110,9 +135,9 @@ if __name__ == '__main__':
 	arguments = parser.parse_args()
 
 	report = Report.from_json_file(arguments.report_file)
-	report_text = report.to_text()
+	report_text = report.to_text(use_color=(arguments.output is None or arguments.output.isatty()))
 
 	if arguments.output:
 		arguments.output.write(report_text)
 	else:
-		pydoc.pager(report_text)
+		pydoc.pipepager(report_text, cmd='less -R')
