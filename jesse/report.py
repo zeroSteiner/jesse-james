@@ -52,7 +52,17 @@ jinja_env.filters['strftime'] = lambda dt, fmt: dt.strftime(fmt)
 
 MARKDOWN_TEMPLATE = jinja_env.from_string("""\
 # Bandit Report
-*Generated On {{ timestamp | strftime('%B %-d, %Y') }}*
+{% if extra.name %}
+**{{ extra.name }}**
+
+{{ extra.url }}
+
+{% endif %}
+Generated On {{ timestamp | strftime('%B %-d, %Y') }}
+{% if python_version %}
+
+Python Version {{ python_version }}
+{% endif %}
 \\newpage
 \\tableofcontents
 \\newpage
@@ -154,19 +164,24 @@ class Report(object):
 			tablefmt='markdown'
 		)
 		text = MARKDOWN_TEMPLATE.render(
+			extra=self.data.get('_jj'),
 			results=results,
+			python_version=self.data.get('python_version'),
 			summary_table=summary_table,
 			timestamp=self.generated_at
 		)
 		return text
 
 	def to_pdf_file(self, filename):
-		pypandoc.convert_text(self.to_markdown(), 'pdf', format='md', outputfile=filename)
+		pypandoc.convert_text(self.to_markdown(), 'pdf', format='markdown', outputfile=filename)
 
 	def to_text(self, maxwidth=80, use_color=True):
 		results = self.sorted_results
 		text = collections.deque()
 		text.append(termcolor.colored('Report:', attrs=('bold', 'underline')))
+		if '_jj' in self.data:
+			text.append('  - Title:          ' + self.data['_jj']['name'])
+			text.append('  - URL:            ' + self.data['_jj']['url'])
 		text.append("  - Generated At:   {0:%b %d, %Y %H:%M}".format(self.generated_at))
 		text.append("  - Python Version: {0}".format(self.data.get('python_version', 'UNKNOWN')))
 		text.append("  - Total Findings: {0:,}".format(len(results)))
