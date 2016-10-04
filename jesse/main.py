@@ -40,11 +40,11 @@ import re
 import shutil
 import sys
 import tempfile
+import threading
 import traceback
 
 from jesse import fetch
 from jesse import pushbullet_listener
-from jesse import report
 from jesse import runner
 
 import pushbullet
@@ -105,13 +105,12 @@ def main_pushbullet(arguments):
 		if requesting_device is None:
 			continue
 		print("[*] received request to scan: {0} from {1}".format(scan_target, (requesting_device.nickname or requesting_device.device_iden)))
-		match = re.match(r'^http(s)://(github|bitbucket)\.com/(?P<slug>[\w\.-]+/[\w\.-]+)', scan_target, re.I)
+		match = re.match(r'^http(s)://(github\.com|bitbucket\.org)/(?P<slug>[\w\.-]+/[\w\.-]+)', scan_target, re.I)
 		if match:
 			scan_uid = match.group('slug').replace('/', ':', 1)
 			scan_uid += ':' + smoke_zephyr.utilities.random_string_alphanumeric(4)
 		else:
 			scan_uid = smoke_zephyr.utilities.random_string_alphanumeric(8)
-
 		try:
 			scanner = _run_scan(arguments, scan_target)
 			report = scanner.get_report()
@@ -124,6 +123,7 @@ def main_pushbullet(arguments):
 			traceback.print_exc()
 			continue
 		report.data['_jj'] = { # jesse-james extra data
+			'name': work_item.get('title'),
 			'uid': scan_uid,
 			'url': scan_target
 		}
@@ -135,12 +135,15 @@ def main_pushbullet(arguments):
 		)
 		report_text = ''
 		report_text += "Title: {0}\nUID: {1}\nSummary: {2}".format(work_item['title'], scan_uid, summary)
-		account.push_note(
-			'Bandit Report Summary',
-			report_text,
-			device=requesting_device
+		# put the response note in a timer thread so any external actions have a
+		# head start before the user is notified that the job completed
+		thread = threading.Timer(
+			60,
+			account.push_note,
+			('Bandit Report Summary', report_text),
+			{'device': requesting_device}
 		)
-		print('[*] sent summary report: ' + summary)
+		thread.start()
 
 		report_directory = os.path.join(arguments.report_directory, scan_uid)
 		os.mkdir(report_directory)
