@@ -44,6 +44,7 @@ import traceback
 
 from jesse import fetch
 from jesse import pushbullet_listener
+from jesse import report
 from jesse import runner
 
 import pushbullet
@@ -122,7 +123,11 @@ def main_pushbullet(arguments):
 			)
 			traceback.print_exc()
 			continue
-		metrics_totals = report['metrics']['_totals']
+		report.data['_jj'] = { # jesse-james extra data
+			'uid': scan_uid,
+			'url': scan_target
+		}
+		metrics_totals = report.data['metrics']['_totals']
 		summary = "high:{0} medium:{1} low:{2}".format(
 			metrics_totals['SEVERITY.HIGH'],
 			metrics_totals['SEVERITY.MEDIUM'],
@@ -139,8 +144,8 @@ def main_pushbullet(arguments):
 
 		report_directory = os.path.join(arguments.report_directory, scan_uid)
 		os.mkdir(report_directory)
-		with open(os.path.join(report_directory, 'report.json'), 'w') as file_h:
-			json.dump(report, file_h, sort_keys=True, indent=2, separators=(',', ': '))
+		report.to_json_file(os.path.join(report_directory, 'report.json'))
+		report.to_pdf_file(os.path.join(report_directory, 'report.pdf'))
 		with open(os.path.join(report_directory, 'stderr.txt'), 'wb') as file_h:
 			file_h.write(scanner.stderr)
 		with open(os.path.join(report_directory, 'stdout.txt'), 'wb') as file_h:

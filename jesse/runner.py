@@ -37,6 +37,8 @@ import os
 import subprocess
 import sys
 
+import jesse.report
+
 import smoke_zephyr.utilities
 
 class SubprocessRunner(object):
@@ -68,7 +70,8 @@ class SubprocessRunner(object):
 		)
 
 	def get_report(self):
-		return json.loads(self.stdout.decode(self.encoding))
+		data = json.loads(self.stdout.decode(self.encoding))
+		return jesse.report.Report(data)
 
 	def wait(self):
 		self.stdout, self.stderr = self.proc_h.communicate(timeout=self.timeout)

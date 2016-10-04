@@ -38,7 +38,6 @@ import datetime
 import json
 import os
 import re
-import tempfile
 import textwrap
 
 import bandit
@@ -50,6 +49,7 @@ import termcolor
 
 jinja_env = jinja2.Environment(trim_blocks=True)
 jinja_env.filters['strftime'] = lambda dt, fmt: dt.strftime(fmt)
+
 MARKDOWN_TEMPLATE = jinja_env.from_string("""\
 # Bandit Report
 *Generated On {{ timestamp | strftime('%B %-d, %Y') }}*
@@ -137,6 +137,13 @@ class Report(object):
 		results.reverse()
 		return results
 
+	def to_json(self):
+		return json.dumps(self.data, sort_keys=True, indent=2, separators=(',', ': '))
+
+	def to_json_file(self, filename):
+		with open(filename, 'w') as file_h:
+			file_h.write(self.to_json())
+
 	def to_markdown(self):
 		results = self.sorted_results
 		tally = lambda c, s: sum(1 for res in results if res['issue_confidence'] == c and res['issue_severity'] == s)
@@ -153,22 +160,8 @@ class Report(object):
 		)
 		return text
 
-	def to_pdf(self):
-		temp_fd, temp_file = tempfile.mkstemp(suffix='.pdf')
-		os.close(temp_fd)
-		try:
-			pypandoc.convert_text(
-				self.to_markdown(),
-				'pdf',
-				format='md',
-				outputfile=temp_file
-			)
-		except:
-			os.unlink(temp_file)
-			raise
-		with open(temp_file, 'rb') as file_h:
-			pdf = file_h.read()
-		return pdf
+	def to_pdf_file(self, filename):
+		pypandoc.convert_text(self.to_markdown(), 'pdf', format='md', outputfile=filename)
 
 	def to_text(self, maxwidth=80, use_color=True):
 		results = self.sorted_results
