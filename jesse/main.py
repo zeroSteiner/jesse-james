@@ -122,11 +122,10 @@ def main_pushbullet(arguments):
 			)
 			traceback.print_exc()
 			continue
-		report.data['_jj'] = { # jesse-james extra data
-			'name': work_item.get('title'),
-			'uid': scan_uid,
-			'url': scan_target
-		}
+		report.data['_jj']['name'] = work_item.get('title')
+		report.data['_jj']['uid'] = scan_uid
+		report.data['_jj']['url'] = scan_target
+
 		metrics_totals = report.data['metrics']['_totals']
 		summary = "high:{0} medium:{1} low:{2}".format(
 			metrics_totals['SEVERITY.HIGH'],

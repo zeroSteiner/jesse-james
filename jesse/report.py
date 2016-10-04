@@ -93,7 +93,11 @@ Description:
 
 > {{ result.issue_text }}
 
+{% if extra.path %}
+Location: `{{ result.filename[extra.path | length + 1:] }}:{{ result.line_number }}`
+{% else %}
 Location: `{{ result.filename }}:{{ result.line_number }}`
+{% endif %}
 
 Source Code:
 
@@ -211,7 +215,10 @@ class Report(object):
 			))
 			text.append('  Description:')
 			text.extend(['    ' + line for line in textwrap.wrap(result['issue_text'], width=maxwidth - 4)])
-			text.append("  Source: {0}:{1}".format(result['filename'], result['line_number']))
+			filename = result['filename']
+			if '_jj' in self.data:
+				filename = filename[len(self.data['_jj']['path']) + 1:]
+			text.append("  Source: {0}:{1}".format(filename, result['line_number']))
 			for line in result['code'].split('\n')[:-1]:
 				if ' ' in line:
 					text.append("    {0:<5}: {1}".format(*line.split(' ', 1)))

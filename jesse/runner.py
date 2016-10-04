@@ -36,6 +36,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 
 import jesse.report
 
@@ -43,15 +44,17 @@ import smoke_zephyr.utilities
 
 class SubprocessRunner(object):
 	def __init__(self, target_path, python_bin_path=None):
-		self.target_path = target_path
+		self.target_path = os.path.abspath(target_path)
 		self.proc_h = None
 		self.python_bin_path = python_bin_path or sys.executable
 		self.stdout = None
 		self.stderr = None
 		self.encoding = 'utf-8'
 		self.timeout = smoke_zephyr.utilities.parse_timespan('30m')
+		self._scan_time = None
 
 	def run(self):
+		self._scan_time = time.time()
 		self.proc_h = subprocess.Popen(
 			[
 				self.python_bin_path,
@@ -71,10 +74,19 @@ class SubprocessRunner(object):
 
 	def get_report(self):
 		data = json.loads(self.stdout.decode(self.encoding))
+		# jesse-james extra data, some are optionally filled out later
+		data['_jj'] = {
+			'scan_duration': self._scan_time,
+			'name': None,
+			'path': self.target_path,
+			'uid': None,
+			'url': None
+		}
 		return jesse.report.Report(data)
 
 	def wait(self):
 		self.stdout, self.stderr = self.proc_h.communicate(timeout=self.timeout)
+		self._scan_time = time.time() - self._scan_time
 
 class PyenvSubprocessRunner(SubprocessRunner):
 	def __init__(self, target_path, pyenv_path, pyenv_version):
