@@ -36,13 +36,64 @@ import argparse
 import collections
 import datetime
 import json
+import os
 import re
+import tempfile
 import textwrap
 
 import bandit
+import jinja2
 import pydoc
+import pypandoc
 import tabulate
 import termcolor
+
+jinja_env = jinja2.Environment(trim_blocks=True)
+jinja_env.filters['strftime'] = lambda dt, fmt: dt.strftime(fmt)
+MARKDOWN_TEMPLATE = jinja_env.from_string("""\
+# Bandit Report
+*Generated On {{ timestamp | strftime('%B %-d, %Y') }}*
+\\newpage
+\\tableofcontents
+\\newpage
+
+## Summary of Findings
+
+{{ summary_table }}
+
+*Shown as Confidence over Severity*
+
+Total findings: {{ results | length }}
+
+\\newpage
+
+## All Findings
+
+{% set level = None %}
+{% for result in results %}
+{% if level != result.issue_severity %}
+### {{ result.issue_severity }} Findings
+{% set level = result.issue_severity %}
+{% endif %}
+#### {{ result.test_name }} ({{ result.test_id }})
+
+Severity: {{ result.issue_severity }}, Confidence: {{ result.issue_confidence }}
+
+Description:
+
+> {{ result.issue_text }}
+
+Location: `{{ result.filename }}:{{ result.line_number }}`
+
+Source Code:
+
+```python
+{% for line in result.code.split('\n') %}
+{{ line }}
+{% endfor %}
+```
+{% endfor %}
+""")
 
 class Report(object):
 	def __init__(self, data):
@@ -78,11 +129,49 @@ class Report(object):
 				continue
 			yield result
 
-	def to_text(self, maxwidth=80, use_color=True):
+	@property
+	def sorted_results(self):
 		results = self.data['results']
 		results = sorted(results, key=lambda r: bandit.RANKING_VALUES[r['issue_confidence']])
 		results = sorted(results, key=lambda r: bandit.RANKING_VALUES[r['issue_severity']])
 		results.reverse()
+		return results
+
+	def to_markdown(self):
+		results = self.sorted_results
+		tally = lambda c, s: sum(1 for res in results if res['issue_confidence'] == c and res['issue_severity'] == s)
+		summary_table = [[s] + [tally(c, s) for c in reversed(bandit.RANKING)] for s in reversed(bandit.RANKING)]
+		summary_table = tabulate.tabulate(
+			summary_table,
+			headers=[''] + list(reversed(bandit.RANKING)),
+			tablefmt='markdown'
+		)
+		text = MARKDOWN_TEMPLATE.render(
+			results=results,
+			summary_table=summary_table,
+			timestamp=self.generated_at
+		)
+		return text
+
+	def to_pdf(self):
+		temp_fd, temp_file = tempfile.mkstemp(suffix='.pdf')
+		os.close(temp_fd)
+		try:
+			pypandoc.convert_text(
+				self.to_markdown(),
+				'pdf',
+				format='md',
+				outputfile=temp_file
+			)
+		except:
+			os.unlink(temp_file)
+			raise
+		with open(temp_file, 'rb') as file_h:
+			pdf = file_h.read()
+		return pdf
+
+	def to_text(self, maxwidth=80, use_color=True):
+		results = self.sorted_results
 		text = collections.deque()
 		text.append(termcolor.colored('Report:', attrs=('bold', 'underline')))
 		text.append("  - Generated At:   {0:%b %d, %Y %H:%M}".format(self.generated_at))

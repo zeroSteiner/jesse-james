@@ -1,5 +1,7 @@
 GitPython
+jinja2
 pushbullet.py
+pypandoc
 smoke-zephyr
 tabulate
 termcolor
