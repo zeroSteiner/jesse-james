@@ -50,7 +50,15 @@ import termcolor
 jinja_env = jinja2.Environment(trim_blocks=True)
 jinja_env.filters['strftime'] = lambda dt, fmt: dt.strftime(fmt)
 
-MARKDOWN_TEMPLATE = jinja_env.from_string("""\
+PDF_TEMPLATE = jinja_env.from_string("""\
+{#
+  this is a Jinja2 template to create a markdown file suitable for conversion to
+  pdf using pandoc
+#}
+---
+documentclass: article
+geometry: margin=0.8in
+...
 # Bandit Report
 {% if extra.name %}
 **{{ extra.name }}**
@@ -69,11 +77,11 @@ Python Version {{ python_version }}
 
 ## Summary of Findings
 
+Total findings: {{ results | length }}
+
 {{ summary_table }}
 
 *Shown as Confidence over Severity*
-
-Total findings: {{ results | length }}
 
 \\newpage
 
@@ -158,7 +166,7 @@ class Report(object):
 		with open(filename, 'w') as file_h:
 			file_h.write(self.to_json())
 
-	def to_markdown(self):
+	def to_pdf_file(self, filename):
 		results = self.sorted_results
 		tally = lambda c, s: sum(1 for res in results if res['issue_confidence'] == c and res['issue_severity'] == s)
 		summary_table = [[s] + [tally(c, s) for c in reversed(bandit.RANKING)] for s in reversed(bandit.RANKING)]
@@ -167,17 +175,14 @@ class Report(object):
 			headers=[''] + list(reversed(bandit.RANKING)),
 			tablefmt='markdown'
 		)
-		text = MARKDOWN_TEMPLATE.render(
+		text = PDF_TEMPLATE.render(
 			extra=self.data.get('_jj'),
 			results=results,
 			python_version=self.data.get('python_version'),
 			summary_table=summary_table,
 			timestamp=self.generated_at
 		)
-		return text
-
-	def to_pdf_file(self, filename):
-		pypandoc.convert_text(self.to_markdown(), 'pdf', format='markdown', outputfile=filename)
+		pypandoc.convert_text(text, 'pdf', format='markdown', outputfile=filename)
 
 	def to_text(self, maxwidth=80, use_color=True):
 		results = self.sorted_results
