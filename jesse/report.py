@@ -196,7 +196,7 @@ class Report(object):
 			summary_table=summary_table,
 			timestamp=self.generated_at
 		)
-		pypandoc.convert_text(text, 'pdf', format='markdown', outputfile=filename)
+		pypandoc.convert_text(text, 'pdf', extra_args=['--latex-engine=xelatex'], format='markdown', outputfile=filename)
 
 	def to_text(self, maxwidth=80, use_color=True):
 		results = self.sorted_results
