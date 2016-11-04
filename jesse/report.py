@@ -83,6 +83,8 @@ Total findings: {{ results | length }}
 
 *Shown as Confidence over Severity*
 
+{{ findings_table }}
+
 \\newpage
 
 ## All Findings
@@ -175,8 +177,20 @@ class Report(object):
 			headers=[''] + list(reversed(bandit.RANKING)),
 			tablefmt='markdown'
 		)
+		ctr = collections.Counter()
+		ctr.update(((res['test_name'], res['issue_severity']) for res in results))
+		findings_table = [(k[0], k[1], v) for k, v in ctr.items()]
+		findings_table = sorted(findings_table, key=lambda k: k[2])
+		findings_table = sorted(findings_table, key=lambda k: bandit.RANKING_VALUES[k[1]])
+		findings_table = reversed(findings_table)
+		findings_table = tabulate.tabulate(
+			findings_table,
+			headers=('Finding Name', 'Severity', 'Occurrences'),
+			tablefmt='markdown'
+		)
 		text = PDF_TEMPLATE.render(
 			extra=self.data.get('_jj'),
+			findings_table=findings_table,
 			results=results,
 			python_version=self.data.get('python_version'),
 			summary_table=summary_table,
