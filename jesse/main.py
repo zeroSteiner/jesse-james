@@ -99,12 +99,11 @@ def main_pushbullet(arguments):
 		scan_target = work_item.get('url')
 		if scan_target is None:
 			continue
-		if not 'source_device_iden' in work_item:
-			continue
-		requesting_device = next((device for device in account.devices if device.device_iden == work_item['source_device_iden']), None)
+		requesting_device = next((device for device in account.devices if device.device_iden == work_item.get('source_device_iden')), None)
 		if requesting_device is None:
-			continue
-		print("[*] received request to scan: {0} from {1}".format(scan_target, (requesting_device.nickname or requesting_device.device_iden)))
+			print("[*] received request to scan: {0}".format(scan_target))
+		else:
+			print("[*] received request to scan: {0} from {1}".format(scan_target, (requesting_device.nickname or requesting_device.device_iden)))
 		match = re.match(r'^http(s)://(github\.com|bitbucket\.org)/(?P<slug>[\w\.-]+/[\w\.-]+)', scan_target, re.I)
 		if match:
 			scan_uid = match.group('slug').replace('/', ':', 1)
@@ -146,12 +145,12 @@ def main_pushbullet(arguments):
 
 		report_directory = os.path.join(arguments.report_directory, scan_uid)
 		os.mkdir(report_directory)
-		report.to_json_file(os.path.join(report_directory, 'report.json'))
-		report.to_pdf_file(os.path.join(report_directory, 'report.pdf'))
 		with open(os.path.join(report_directory, 'stderr.txt'), 'wb') as file_h:
 			file_h.write(scanner.stderr)
 		with open(os.path.join(report_directory, 'stdout.txt'), 'wb') as file_h:
 			file_h.write(scanner.stdout)
+		report.to_json_file(os.path.join(report_directory, 'report.json'))
+		report.to_pdf_file(os.path.join(report_directory, 'report.pdf'))
 	listener.close()
 
 def main_scan(arguments):
