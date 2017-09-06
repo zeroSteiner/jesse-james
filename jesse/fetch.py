@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-#  fetch.py
+#  jesse/fetch.py
 #
 #  Copyright 2016 Spencer McIntyre <zeroSteiner@gmail.com>
 #

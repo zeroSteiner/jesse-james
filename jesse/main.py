@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-#  main.py
+#  jesse/main.py
 #
 #  Copyright 2016 Spencer McIntyre <zeroSteiner@gmail.com>
 #
@@ -36,9 +36,7 @@ import argparse
 import json
 import os
 import queue
-import re
 import shutil
-import sys
 import tempfile
 import threading
 import traceback
@@ -46,6 +44,7 @@ import traceback
 from jesse import fetch
 from jesse import pushbullet_listener
 from jesse import runner
+import jesse.utilities as utilities
 
 import pushbullet
 import smoke_zephyr.utilities
@@ -86,7 +85,6 @@ def main_pushbullet(arguments):
 	work_queue = queue.Queue()
 	listener = pushbullet_listener.PushbulletDeviceListener(account, device=device, on_push=work_queue.put)
 	listener.start()
-
 	print('[*] started listener for pushbullet links shared with: ' + device_name)
 
 	while True:
@@ -94,9 +92,16 @@ def main_pushbullet(arguments):
 			work_item = work_queue.get()
 		except KeyboardInterrupt:
 			break
-		if work_item.get('type') != 'link':
-			continue
-		scan_target = work_item.get('url')
+		scan_uid = None
+		if work_item.get('type') == 'link':
+			scan_target = work_item.get('url')
+		elif work_item.get('type') == 'note':
+			try:
+				work_item['body'] = json.loads(work_item['body'])
+			except ValueError:
+				continue
+			scan_target = work_item['body'].get('url')
+			scan_uid = work_item['body'].get('uid')
 		if scan_target is None:
 			continue
 		requesting_device = next((device for device in account.devices if device.device_iden == work_item.get('source_device_iden')), None)
@@ -104,12 +109,10 @@ def main_pushbullet(arguments):
 			print("[*] received request to scan: {0}".format(scan_target))
 		else:
 			print("[*] received request to scan: {0} from {1}".format(scan_target, (requesting_device.nickname or requesting_device.device_iden)))
-		match = re.match(r'^http(s)://(github\.com|bitbucket\.org)/(?P<slug>[\w\.-]+/[\w\.-]+)', scan_target, re.I)
-		if match:
-			scan_uid = match.group('slug').replace('/', ':', 1)
-			scan_uid += ':' + smoke_zephyr.utilities.random_string_alphanumeric(4)
-		else:
-			scan_uid = smoke_zephyr.utilities.random_string_alphanumeric(8)
+
+
+		if scan_uid is None:
+			scan_uid = utilities.generate_scan_uid(scan_target)
 		try:
 			scanner = _run_scan(arguments, scan_target)
 			report = scanner.get_report()
@@ -131,8 +134,7 @@ def main_pushbullet(arguments):
 			metrics_totals['SEVERITY.MEDIUM'],
 			metrics_totals['SEVERITY.LOW']
 		)
-		report_text = ''
-		report_text += "Title: {0}\nUID: {1}\nSummary: {2}".format(work_item['title'], scan_uid, summary)
+		report_text = "Title: {0}\nUID: {1}\nSummary: {2}".format(work_item['title'], scan_uid, summary)
 		# put the response note in a timer thread so any external actions have a
 		# head start before the user is notified that the job completed
 		thread = threading.Timer(
@@ -155,7 +157,7 @@ def main_pushbullet(arguments):
 
 def main_scan(arguments):
 	scanner = _run_scan(arguments, arguments.target, allow_file=True)
-	report = scanner.get_report()
+	scanner.get_report()
 
 def main():
 	parser = argparse.ArgumentParser(description='Jesse James (CLI) - Bandit Automated Scanner', conflict_handler='resolve')

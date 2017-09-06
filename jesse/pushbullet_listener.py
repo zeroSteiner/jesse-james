@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-#  pushbullet_listener.py
+#  jesse/pushbullet_listener.py
 #
 #  Copyright 2016 Spencer McIntyre <zeroSteiner@gmail.com>
 #
