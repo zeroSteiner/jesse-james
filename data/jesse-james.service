@@ -1,0 +1,13 @@
+[Unit]
+AssertPathExists=/opt/jesse-james
+
+[Service]
+WorkingDirectory=/opt/jesse-james
+Environment=PYTHON_PATH=/opt/bandit
+ExecStart=/usr/bin/python3 -m jesse.main pushbullet --report-dir scans PUSHBULLET_API_KEY
+Restart=always
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target
