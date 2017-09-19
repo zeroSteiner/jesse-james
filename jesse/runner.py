@@ -73,7 +73,11 @@ class SubprocessRunner(object):
 		)
 
 	def get_report(self):
-		data = json.loads(self.stdout.decode(self.encoding))
+		try:
+			data = json.loads(self.stdout.decode(self.encoding))
+		except json.decoder.JSONDecodeError:
+			sys.stderr.write(self.stderr.decode(self.encoding))
+			raise
 		# jesse-james extra data, some are optionally filled out later
 		data['_jj'] = {
 			'scan_duration': self._scan_time,
