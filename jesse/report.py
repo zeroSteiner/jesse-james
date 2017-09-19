@@ -178,14 +178,14 @@ class Report(object):
 			tablefmt='markdown'
 		)
 		ctr = collections.Counter()
-		ctr.update(((res['test_name'], res['issue_severity']) for res in results))
-		findings_table = [(k[0], k[1], v) for k, v in ctr.items()]
-		findings_table = sorted(findings_table, key=lambda k: k[2])
-		findings_table = sorted(findings_table, key=lambda k: bandit.RANKING_VALUES[k[1]])
+		ctr.update(((res['test_id'], res['test_name'], res['issue_severity']) for res in results))
+		findings_table = [(k[0], k[1], k[2], v) for k, v in ctr.items()]
+		findings_table = sorted(findings_table, key=lambda k: k[3])
+		findings_table = sorted(findings_table, key=lambda k: bandit.RANKING_VALUES[k[2]])
 		findings_table = reversed(findings_table)
 		findings_table = tabulate.tabulate(
 			findings_table,
-			headers=('Finding Name', 'Severity', 'Occurrences'),
+			headers=('ID', 'Finding Name', 'Severity', 'Occurrences'),
 			tablefmt='markdown'
 		)
 		text = PDF_TEMPLATE.render(
